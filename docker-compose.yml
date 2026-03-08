@@ -1,0 +1,61 @@
+services:
+  nexus-server:
+    build:
+      context: .
+      args:
+        NEXUS_BIN: nexus-server-linux-amd64
+    image: nexus-server:latest
+    container_name: nexus-server
+    restart: unless-stopped
+
+    ports:
+      # HTTP / WebSocket (TCP)
+      - "${NEXUS_PORT:-8443}:${NEXUS_PORT:-8443}"
+      # Voice chat (UDP) — only needed if NEXUS_VOICE_PORT is set
+      - "${NEXUS_VOICE_PORT:-10000}:${NEXUS_VOICE_PORT:-10000}/udp"
+
+    volumes:
+      # Persistent data (database, TLS certs)
+      - ./data:/var/lib/nexus/data
+
+    environment:
+      # ── Server ──────────────────────────────────────
+      - NEXUS_HOST=0.0.0.0
+      - NEXUS_PORT=${NEXUS_PORT:-8443}
+      - NEXUS_DB=/var/lib/nexus/data/nexus.db
+      - RUST_LOG=${RUST_LOG:-info}
+
+      # ── TLS ─────────────────────────────────────────
+      # Auto-generates self-signed cert by default.
+      # For user-provided certs, mount them and set:
+      #- NEXUS_TLS_CERT=/var/lib/nexus/data/cert.pem
+      #- NEXUS_TLS_KEY=/var/lib/nexus/data/key.pem
+      # For reverse proxy (Cloudflare Tunnel, nginx, etc):
+      #- NEXUS_TLS_DISABLED=true
+
+      # ── Voice chat ──────────────────────────────────
+      # Set to a port number to enable voice (UDP).
+      # This port must be exposed directly (not tunneled).
+      - NEXUS_VOICE_PORT=${NEXUS_VOICE_PORT:-10000}
+      - NEXUS_VOICE_MAX_SPEAKERS=${NEXUS_VOICE_MAX_SPEAKERS:-5}
+
+      # ── Security ────────────────────────────────────
+      - NEXUS_REAUTH_INTERVAL=${NEXUS_REAUTH_INTERVAL:-900}
+
+    security_opt:
+      - no-new-privileges:true
+
+    deploy:
+      resources:
+        limits:
+          cpus: '2.0'
+          memory: 512M
+
+    healthcheck:
+      test: >-
+        curl -fsk https://localhost:${NEXUS_PORT:-8443}/api/stats ||
+        curl -fs  http://localhost:${NEXUS_PORT:-8443}/api/stats || exit 1
+      interval: 30s
+      timeout: 3s
+      retries: 3
+      start_period: 10s
