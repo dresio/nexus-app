@@ -4,7 +4,7 @@ services:
       context: .
       args:
         NEXUS_BIN: nexus-server-linux-amd64
-    image: nexus-server:latest
+    image: ghcr.io/dresio/nexus-server:latest
     container_name: nexus-server
     restart: unless-stopped
 
